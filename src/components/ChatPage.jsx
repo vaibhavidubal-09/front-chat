@@ -22,12 +22,26 @@ import {
 const fixFileUrl = (url) => {
   if (!url) return "";
 
-  // already correct → don't touch
-  if (url.startsWith("https://chat-app-backend-po82.onrender.com")) {
+  // 🔥 Fix broken https//
+  url = url.replace("https//", "https://");
+
+  // 🔥 Remove duplicate domain if present
+  url = url.replace(
+    "https://chat-app-backend-po82.onrender.comhttps://chat-app-backend-po82.onrender.com",
+    "https://chat-app-backend-po82.onrender.com"
+  );
+
+  // If already correct
+  if (url.includes("chat-app-backend-po82.onrender.com/uploads")) {
     return url;
   }
 
-  // replace localhost → production
+  // If relative path
+  if (url.startsWith("/uploads")) {
+    return `https://chat-app-backend-po82.onrender.com${url}`;
+  }
+
+  // Replace localhost
   if (url.startsWith("http://localhost:8080")) {
     return url.replace(
       "http://localhost:8080",
