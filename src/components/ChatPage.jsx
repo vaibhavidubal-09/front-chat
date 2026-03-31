@@ -522,27 +522,26 @@ const ChatPage = () => {
                     {replyToMsg && <div className="mb-2 rounded-xl border-l-4 border-emerald-500 bg-slate-100 p-2 text-xs text-slate-700">Reply: {replyToMsg.content || "Media"}</div>}
                     {(msg.type === "TEXT" || (!msg.type && msg.content)) && <p>{msg.content}</p>}
                     {msg.type === "IMAGE" && (
-                      <img
-                        src={fixFileUrl(msg.fileUrl)}
+                      <img src={msg.fileUrl} 
                         className="max-w-xs mt-2 rounded-xl"
                       />
                     )}
 
                     {msg.type === "VIDEO" && (
                       <video controls className="max-w-xs mt-2 rounded-xl">
-                        <source src={fixFileUrl(msg.fileUrl)} />
+                        <source src={(msg.fileUrl)} />
                       </video>
                     )}
 
                     {msg.type === "AUDIO" && (
                       <audio controls className="mt-2">
-                        <source src={fixFileUrl(msg.fileUrl)} />
+                        <source src={(msg.fileUrl)} />
                       </audio>
                     )}
 
                     {msg.type === "FILE" && msg.fileUrl && (
                       <a
-                        href={fixFileUrl(msg.fileUrl)}
+                        href={(msg.fileUrl)}
                         target="_blank"
                         rel="noreferrer"
                         className="mt-2 inline-block text-sm font-medium text-blue-600 underline"
