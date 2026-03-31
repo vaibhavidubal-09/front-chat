@@ -21,10 +21,21 @@ import {
 } from "../config/helper";
 const fixFileUrl = (url) => {
   if (!url) return "";
-  return url.replace(
-    "http://localhost:8080",
-    "https://chat-app-backend-po82.onrender.com"
-  );
+
+  // already correct → don't touch
+  if (url.startsWith("https://chat-app-backend-po82.onrender.com")) {
+    return url;
+  }
+
+  // replace localhost → production
+  if (url.startsWith("http://localhost:8080")) {
+    return url.replace(
+      "http://localhost:8080",
+      "https://chat-app-backend-po82.onrender.com"
+    );
+  }
+
+  return url;
 };
 const TYPING_IDLE_MS = 1200;
 
@@ -41,12 +52,7 @@ const normalizeMessage = (message) => {
     recipient,
     type,
     content: message.content || "",
-    fileUrl: message.fileUrl
-  ? message.fileUrl.replace(
-      "http://localhost:8080",
-      "https://chat-app-backend-po82.onrender.com"
-    )
-  : "",
+    fileUrl: message.fileUrl ? fixFileUrl(message.fileUrl) : "",
     replyTo: message.replyTo || null,
     privateMessage: Boolean(message.privateMessage),
     timeStamp: message.timeStamp || message.timestamp || null
