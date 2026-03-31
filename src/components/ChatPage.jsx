@@ -19,7 +19,13 @@ import {
   getSocketTopicKey,
   normalizeEmail
 } from "../config/helper";
-
+const fixFileUrl = (url) => {
+  if (!url) return "";
+  return url.replace(
+    "http://localhost:8080",
+    "https://chat-app-backend-po82.onrender.com"
+  );
+};
 const TYPING_IDLE_MS = 1200;
 
 const normalizeMessage = (message) => {
@@ -35,7 +41,12 @@ const normalizeMessage = (message) => {
     recipient,
     type,
     content: message.content || "",
-    fileUrl: message.fileUrl || "",
+    fileUrl: message.fileUrl
+  ? message.fileUrl.replace(
+      "http://localhost:8080",
+      "https://chat-app-backend-po82.onrender.com"
+    )
+  : "",
     replyTo: message.replyTo || null,
     privateMessage: Boolean(message.privateMessage),
     timeStamp: message.timeStamp || message.timestamp || null
@@ -249,7 +260,7 @@ const ChatPage = () => {
               const next = prev.filter((entry) => entry !== user);
               return payload.typing ? [...next, user] : next;
             });
-          } catch {}
+          } catch { }
         });
         stompClient.subscribe(`/topic/seen/${roomId}`, (msg) => {
           try {
@@ -261,7 +272,7 @@ const ChatPage = () => {
               ...prev,
               [messageId]: [...new Set([...(prev[messageId] || []), user])]
             }));
-          } catch {}
+          } catch { }
         });
         stompClient.subscribe(`/topic/room-events/${roomId}`, (msg) => {
           try {
@@ -277,7 +288,7 @@ const ChatPage = () => {
               setBlockedInRoom(blocked);
               toast[blocked ? "error" : "success"](blocked ? "You were blocked from this class" : "You were reactivated in this class");
             }
-          } catch {}
+          } catch { }
         });
         stompClient.subscribe(`/topic/notifications/${getSocketTopicKey(currentEmail)}`, (msg) => {
           try {
@@ -319,7 +330,7 @@ const ChatPage = () => {
             }
             if (type === "MODERATION_WARNING") toast.error(payload.message || "Your message was flagged");
             if (type === "MODERATION_ALERT" && payload.roomId === roomId && isTeacher) toast(payload.message || "A message was flagged");
-          } catch {}
+          } catch { }
         });
         stompClient.publish({ destination: `/app/join/${roomId}`, body: currentEmail });
       },
@@ -490,10 +501,35 @@ const ChatPage = () => {
                     </div>
                     {replyToMsg && <div className="mb-2 rounded-xl border-l-4 border-emerald-500 bg-slate-100 p-2 text-xs text-slate-700">Reply: {replyToMsg.content || "Media"}</div>}
                     {(msg.type === "TEXT" || (!msg.type && msg.content)) && <p>{msg.content}</p>}
-                    {msg.type === "IMAGE" && <img src={msg.fileUrl} className="max-w-xs mt-2 rounded-xl" />}
-                    {msg.type === "VIDEO" && <video controls className="max-w-xs mt-2 rounded-xl"><source src={msg.fileUrl} /></video>}
-                    {msg.type === "AUDIO" && <audio controls className="mt-2"><source src={msg.fileUrl} /></audio>}
-                    {msg.type === "FILE" && msg.fileUrl && <a href={msg.fileUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-medium text-blue-600 underline">Open attachment</a>}
+                    {msg.type === "IMAGE" && (
+                      <img
+                        src={fixFileUrl(msg.fileUrl)}
+                        className="max-w-xs mt-2 rounded-xl"
+                      />
+                    )}
+
+                    {msg.type === "VIDEO" && (
+                      <video controls className="max-w-xs mt-2 rounded-xl">
+                        <source src={fixFileUrl(msg.fileUrl)} />
+                      </video>
+                    )}
+
+                    {msg.type === "AUDIO" && (
+                      <audio controls className="mt-2">
+                        <source src={fixFileUrl(msg.fileUrl)} />
+                      </audio>
+                    )}
+
+                    {msg.type === "FILE" && msg.fileUrl && (
+                      <a
+                        href={fixFileUrl(msg.fileUrl)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-block text-sm font-medium text-blue-600 underline"
+                      >
+                        Open attachment
+                      </a>
+                    )}
                     <div className="mt-3 flex gap-3 text-xs text-slate-500">
                       <button onClick={() => setReplyMsg(msg)}>Reply</button>
                       {isMe && <button onClick={() => { setEditMsg(msg); setInput(msg.content || ""); }}>Edit</button>}
