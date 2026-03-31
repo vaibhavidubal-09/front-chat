@@ -17,6 +17,8 @@ import {
   checkVerifiedApi,
 } from "../services/AuthService";
 
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const JoinCreateChat = () => {
 
   const [detail, setDetail] = useState({
@@ -61,20 +63,39 @@ const JoinCreateChat = () => {
 
   // AUTO CHECK VERIFIED EMAIL
   useEffect(() => {
-    if (!detail.emailId) return;
+    const email = detail.emailId.trim();
 
-    setCheckingVerification(true);
+    if (!emailPattern.test(email)) {
+      setIsVerified(false);
+      setCheckingVerification(false);
+      return;
+    }
 
-    checkVerifiedApi(detail.emailId)
-      .then((res) => {
-        setIsVerified(res.data === true);
-      })
-      .catch(() => {
-        setIsVerified(false);
-      })
-      .finally(() => {
-        setCheckingVerification(false);
-      });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      setCheckingVerification(true);
+
+      checkVerifiedApi(email, { signal: controller.signal })
+        .then((res) => {
+          setIsVerified(res.data === true);
+        })
+        .catch((error) => {
+          if (error.code !== "ERR_CANCELED" && error.name !== "CanceledError") {
+            setIsVerified(false);
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setCheckingVerification(false);
+          }
+        });
+    }, 600);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+      setCheckingVerification(false);
+    };
 
   }, [detail.emailId]);
 

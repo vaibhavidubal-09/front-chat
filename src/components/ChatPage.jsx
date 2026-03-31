@@ -4,7 +4,7 @@ import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 import toast from "react-hot-toast";
 import { useChatContext } from "../context/useChatContext";
-import { websocketUrl } from "../config/backend";
+import { apiBaseUrl, websocketUrl } from "../config/backend";
 import { uploadFileApi } from "../services/FileService";
 import {
   getMessagesApi,
@@ -51,6 +51,39 @@ const fixFileUrl = (url) => {
 
   return url;
 };
+
+const resolveFileUrl = (url) => {
+  if (!url) return "";
+
+  const normalizedUrl = fixFileUrl(`${url}`.trim());
+  const duplicateBase = `${apiBaseUrl}${apiBaseUrl}`;
+
+  if (normalizedUrl.startsWith(duplicateBase)) {
+    return normalizedUrl.replace(duplicateBase, apiBaseUrl);
+  }
+
+  if (/^https?:\/\//i.test(normalizedUrl)) {
+    if (normalizedUrl.startsWith("http://localhost:8080")) {
+      return normalizedUrl.replace("http://localhost:8080", apiBaseUrl);
+    }
+
+    if (normalizedUrl.startsWith("https://localhost:8080")) {
+      return normalizedUrl.replace("https://localhost:8080", apiBaseUrl);
+    }
+
+    if (normalizedUrl.includes("/uploads/") && !normalizedUrl.startsWith(apiBaseUrl)) {
+      return `${apiBaseUrl}${normalizedUrl.slice(normalizedUrl.indexOf("/uploads/"))}`;
+    }
+
+    return normalizedUrl;
+  }
+
+  if (normalizedUrl.startsWith("/")) {
+    return `${apiBaseUrl}${normalizedUrl}`;
+  }
+
+  return `${apiBaseUrl}/${normalizedUrl}`;
+};
 const TYPING_IDLE_MS = 1200;
 
 const normalizeMessage = (message) => {
@@ -66,7 +99,7 @@ const normalizeMessage = (message) => {
     recipient,
     type,
     content: message.content || "",
-    fileUrl: message.fileUrl ? fixFileUrl(message.fileUrl) : "",
+    fileUrl: message.fileUrl ? resolveFileUrl(message.fileUrl) : "",
     replyTo: message.replyTo || null,
     privateMessage: Boolean(message.privateMessage),
     timeStamp: message.timeStamp || message.timestamp || null
@@ -523,25 +556,26 @@ const ChatPage = () => {
                     {(msg.type === "TEXT" || (!msg.type && msg.content)) && <p>{msg.content}</p>}
                     {msg.type === "IMAGE" && (
                       <img src={msg.fileUrl} 
+                        alt={msg.content || "Image attachment"}
                         className="max-w-xs mt-2 rounded-xl"
                       />
                     )}
 
                     {msg.type === "VIDEO" && (
                       <video controls className="max-w-xs mt-2 rounded-xl">
-                        <source src={(msg.fileUrl)} />
+                        <source src={msg.fileUrl} type="video/mp4" />
                       </video>
                     )}
 
                     {msg.type === "AUDIO" && (
                       <audio controls className="mt-2">
-                        <source src={(msg.fileUrl)} />
+                        <source src={msg.fileUrl} type="audio/mpeg" />
                       </audio>
                     )}
 
                     {msg.type === "FILE" && msg.fileUrl && (
                       <a
-                        href={(msg.fileUrl)}
+                        href={msg.fileUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="mt-2 inline-block text-sm font-medium text-blue-600 underline"

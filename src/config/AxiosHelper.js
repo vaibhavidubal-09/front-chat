@@ -28,7 +28,15 @@ httpClient.interceptors.request.use(
 httpClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error("API Error:", error);
+    const isCanceled =
+      error.code === "ERR_CANCELED" ||
+      error.code === "ECONNABORTED" ||
+      error.name === "CanceledError";
+
+    if (!isCanceled) {
+      console.error("API Error:", error);
+    }
+
     return Promise.reject(error);
   }
 );

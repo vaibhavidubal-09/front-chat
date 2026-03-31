@@ -21,8 +21,10 @@ export const verifyOtpApi = (email, otp) => {
 // ============================================================
 // CHECK VERIFIED USER
 // ============================================================
-export const checkVerifiedApi = (email) => {
+export const checkVerifiedApi = (email, config = {}) => {
   return httpClient.get("/auth/check-verified", {
-    params: { email }
+    params: { email },
+    timeout: 20000,
+    ...config
   });
 };

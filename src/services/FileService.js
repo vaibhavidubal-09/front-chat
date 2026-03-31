@@ -27,5 +27,15 @@ export const uploadFileApi = async (file) => {
     }
   );
 
-  return `${httpClient.defaults.baseURL}${response.data}`;
+  const uploadedPath = `${response.data || ""}`.trim();
+
+  if (/^https?:\/\//i.test(uploadedPath)) {
+    return uploadedPath;
+  }
+
+  if (uploadedPath.startsWith("/")) {
+    return `${httpClient.defaults.baseURL}${uploadedPath}`;
+  }
+
+  return `${httpClient.defaults.baseURL}/${uploadedPath}`;
 };
