@@ -17,6 +17,11 @@ export const httpClient = axios.create({
 // Optional: request interceptor (future auth token support)
 httpClient.interceptors.request.use(
   (config) => {
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers["X-Auth-Token"] = token;
+    }
     return config;
   },
   (error) => {

@@ -133,7 +133,7 @@ const shouldNotifyForIncomingRoomMessage = ({
 };
 
 const ChatPage = () => {
-  const { roomId, setRoomId, currentUserEmail, currentUserRole } = useChatContext();
+  const { roomId, setRoomId, currentUserEmail, currentUserRole, authToken } = useChatContext();
   const currentEmail = normalizeEmail(currentUserEmail);
   const isTeacher = currentUserRole === "TEACHER";
   const chatBoxRef = useRef(null);
@@ -385,7 +385,10 @@ const ChatPage = () => {
             if (type === "MODERATION_ALERT" && payload.roomId === roomId && isTeacher) toast(payload.message || "A message was flagged");
           } catch { }
         });
-        stompClient.publish({ destination: `/app/join/${roomId}`, body: currentEmail });
+        stompClient.publish({
+          destination: `/app/join/${roomId}`,
+          body: JSON.stringify({ email: currentEmail, authToken })
+        });
       },
       onDisconnect: () => setClient(null),
       onWebSocketClose: () => setClient(null)
@@ -398,20 +401,20 @@ const ChatPage = () => {
       setClient(null);
       stompClient.deactivate();
     };
-  }, [roomId, currentEmail, chatMode, selectedPeer, isTeacher]);
+  }, [roomId, currentEmail, chatMode, selectedPeer, isTeacher, authToken]);
 
   const publishTyping = (typing) => {
     if (!client?.connected || !roomId) return;
     if (chatMode === "PRIVATE" && selectedPeer) {
       client.publish({
         destination: `/app/privateTyping/${roomId}`,
-        body: JSON.stringify({ sender: currentEmail, recipient: selectedPeer, typing })
+        body: JSON.stringify({ sender: currentEmail, recipient: selectedPeer, typing, authToken })
       });
       return;
     }
     client.publish({
       destination: `/app/typing/${roomId}`,
-      body: JSON.stringify({ user: currentEmail, typing })
+      body: JSON.stringify({ user: currentEmail, typing, authToken })
     });
   };
 
@@ -422,7 +425,7 @@ const ChatPage = () => {
     lastSeenMessageIdRef.current = latestIncoming.id;
     client.publish({
       destination: `/app/seen/${roomId}`,
-      body: JSON.stringify({ messageId: latestIncoming.id, user: currentEmail })
+      body: JSON.stringify({ messageId: latestIncoming.id, user: currentEmail, authToken })
     });
   }, [activeMessages, roomId, currentEmail, client]);
 
@@ -458,7 +461,8 @@ const ChatPage = () => {
       sender: currentEmail,
       recipient: privateMessage ? selectedPeer : "",
       privateMessage,
-      replyTo: replyMsg?.id
+      replyTo: replyMsg?.id,
+      authToken
     };
 
     if (selectedFile) {
@@ -487,7 +491,7 @@ const ChatPage = () => {
     if (editMsg) {
       activeClient.publish({
         destination: `/app/edit/${roomId}`,
-        body: JSON.stringify({ messageId: editMsg.id, content: input })
+        body: JSON.stringify({ messageId: editMsg.id, content: input, authToken })
       });
       setEditMsg(null);
     } else {
@@ -586,7 +590,7 @@ const ChatPage = () => {
                     <div className="mt-3 flex gap-3 text-xs text-slate-500">
                       <button onClick={() => setReplyMsg(msg)}>Reply</button>
                       {isMe && <button onClick={() => { setEditMsg(msg); setInput(msg.content || ""); }}>Edit</button>}
-                      {isMe && <button onClick={() => readyClient()?.publish({ destination: `/app/delete/${roomId}`, body: msg.id })}>Delete</button>}
+                      {isMe && <button onClick={() => readyClient()?.publish({ destination: `/app/delete/${roomId}`, body: JSON.stringify({ messageId: msg.id, sender: currentEmail, authToken }) })}>Delete</button>}
                     </div>
                     <div className={`mt-2 flex items-center gap-2 text-[11px] text-slate-500 ${isMe ? "justify-end" : "justify-start"}`}>
                       <span>{formatDateTime(msg.timeStamp)}</span>

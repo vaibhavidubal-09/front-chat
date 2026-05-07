@@ -15,7 +15,9 @@ import {
   sendOtpApi,
   verifyOtpApi,
   checkVerifiedApi,
+  loginApi,
 } from "../services/AuthService";
+import { getApiErrorMessage } from "../config/error";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,9 +27,9 @@ const JoinCreateChat = () => {
     roomId: "",
     userName: "",
     emailId: "",
-    role: "STUDENT",
   });
 
+  const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [isVerified, setIsVerified] = useState(false);
   const [checkingVerification, setCheckingVerification] = useState(false);
@@ -41,6 +43,7 @@ const JoinCreateChat = () => {
     setCurrentUserEmail,
     setCurrentUserRole,
     setConnected,
+    setAuthToken,
   } = useChatContext();
 
   const navigate = useNavigate();
@@ -49,14 +52,12 @@ const JoinCreateChat = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const invitedRoomId = params.get("roomId");
-    const invitedRole = params.get("role");
 
-    if (!invitedRoomId && !invitedRole) return;
+    if (!invitedRoomId) return;
 
     setDetail((prev) => ({
       ...prev,
       roomId: invitedRoomId || prev.roomId,
-      role: invitedRole || prev.role
     }));
   }, [location.search]);
 
@@ -125,7 +126,7 @@ const JoinCreateChat = () => {
     try {
       setSendingOtp(true);
 
-      await sendOtpApi(detail.emailId, detail.role);
+      await sendOtpApi(detail.emailId, "STUDENT");
 
       toast.success("OTP sent to email");
 
@@ -140,17 +141,31 @@ const JoinCreateChat = () => {
   // VERIFY OTP
   async function verifyOtp() {
 
+    if (!password.trim()) {
+      toast.error("Enter a password first");
+      return;
+    }
+
     try {
       setVerifyingOtp(true);
 
-      const response = await verifyOtpApi(detail.emailId, otp);
+      const response = await verifyOtpApi(detail.emailId, otp, password);
 
-      toast.success(response.data);
+      toast.success("Email verified");
 
       setIsVerified(true);
+      setCurrentUser(detail.userName);
+      setCurrentUserEmail(detail.emailId);
+      setCurrentUserRole(response.data.role || "STUDENT");
+      setAuthToken(response.data.token);
+      localStorage.setItem("authToken", response.data.token || "");
+      localStorage.setItem("authEmail", detail.emailId);
+      localStorage.setItem("currentUser", detail.userName || "");
+      localStorage.setItem("currentUserEmail", detail.emailId || "");
+      localStorage.setItem("currentUserRole", response.data.role || "STUDENT");
 
-    } catch {
-      toast.error("Invalid OTP");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Invalid OTP"));
     } finally {
       setVerifyingOtp(false);
     }
@@ -162,7 +177,7 @@ const JoinCreateChat = () => {
 
     const { roomId, userName, emailId } = detail;
 
-    if (!roomId || !userName || !emailId) {
+    if (!roomId || !userName || !emailId || !password.trim()) {
 
       toast.error("All fields required");
 
@@ -179,6 +194,30 @@ const JoinCreateChat = () => {
     return true;
   }
 
+  async function ensureLogin() {
+    const storedToken = localStorage.getItem("authToken");
+    const storedEmail = localStorage.getItem("authEmail");
+
+    if (
+      storedToken &&
+      storedEmail &&
+      storedEmail.trim().toLowerCase() === detail.emailId.trim().toLowerCase()
+    ) {
+      return;
+    }
+
+    const response = await loginApi(detail.emailId, password);
+    setCurrentUser(detail.userName);
+    setCurrentUserEmail(detail.emailId);
+    setCurrentUserRole(response.data.role || "STUDENT");
+    setAuthToken(response.data.token);
+    localStorage.setItem("authToken", response.data.token || "");
+    localStorage.setItem("authEmail", detail.emailId);
+    localStorage.setItem("currentUser", detail.userName || "");
+    localStorage.setItem("currentUserEmail", detail.emailId || "");
+    localStorage.setItem("currentUserRole", response.data.role || "STUDENT");
+  }
+
 
   // JOIN CLASS
   async function joinChat() {
@@ -188,15 +227,17 @@ const JoinCreateChat = () => {
     try {
       setSubmitting(true);
 
-      if (detail.role === "STUDENT") {
-        await joinRoomApi(detail.roomId, detail.emailId);
+      if (!isVerified) {
+        toast.error("Verify email first");
+        return;
       }
+
+      await ensureLogin();
+
+      await joinRoomApi(detail.roomId, detail.emailId);
 
       const room = await getRoomApi(detail.roomId);
 
-      setCurrentUser(detail.userName);
-      setCurrentUserEmail(detail.emailId); // IMPORTANT
-      setCurrentUserRole(detail.role);
       setRoomId(room.roomId);
       setConnected(true);
 
@@ -205,7 +246,7 @@ const JoinCreateChat = () => {
       navigate("/dashboard");
 
     } catch (error) {
-      toast.error(error.response?.data || "Join failed");
+      toast.error(getApiErrorMessage(error, "Join failed"));
     } finally {
       setSubmitting(false);
     }
@@ -217,22 +258,21 @@ const JoinCreateChat = () => {
 
     if (!validateForm()) return;
 
-    if (detail.role !== "TEACHER") {
-      toast.error("Only teachers can create class");
-      return;
-    }
-
     try {
       setSubmitting(true);
+
+      if (!isVerified) {
+        toast.error("Verify email first");
+        return;
+      }
+
+      await ensureLogin();
 
       const room = await createRoomApi({
         email: detail.emailId,
         roomName: detail.roomId
       });
 
-      setCurrentUser(detail.userName);
-      setCurrentUserEmail(detail.emailId); // IMPORTANT
-      setCurrentUserRole(detail.role);
       setRoomId(room.roomId);
       setConnected(true);
 
@@ -241,7 +281,7 @@ const JoinCreateChat = () => {
       navigate("/dashboard");
 
     } catch (error) {
-      toast.error(error.response?.data || "Create class failed");
+      toast.error(getApiErrorMessage(error, "Create class failed"));
     } finally {
       setSubmitting(false);
     }
@@ -259,6 +299,12 @@ const JoinCreateChat = () => {
           Smart Classroom Chat
         </h1>
 
+        <p className="text-sm text-slate-300 text-center leading-6">
+          Verify your email first, then enter your password to continue.
+          <br />
+          Role access is assigned by the backend after login.
+        </p>
+
 
         {/* NAME */}
         <input
@@ -273,7 +319,7 @@ const JoinCreateChat = () => {
         {/* CLASS */}
         <input
           name="roomId"
-          placeholder={detail.role === "TEACHER" ? "Class Name (ex: CS-D)" : "Class Code"}
+          placeholder="Class Code or Name"
           value={detail.roomId}
           onChange={handleFormInputChange}
           className="px-4 py-2 rounded bg-slate-700"
@@ -290,17 +336,15 @@ const JoinCreateChat = () => {
           className="px-4 py-2 rounded bg-slate-700"
         />
 
-
-        {/* ROLE */}
-        <select
-          name="role"
-          value={detail.role}
-          onChange={handleFormInputChange}
+        {/* PASSWORD */}
+        <input
+          name="password"
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           className="px-4 py-2 rounded bg-slate-700"
-        >
-          <option value="STUDENT">Student</option>
-          <option value="TEACHER">Teacher</option>
-        </select>
+        />
 
 
         {/* OTP */}
@@ -338,6 +382,12 @@ const JoinCreateChat = () => {
           </p>
         )}
 
+        {isVerified && password.trim() && (
+          <p className="text-xs text-slate-400 text-center">
+            Password is required before joining or creating a class.
+          </p>
+        )}
+
         {!isVerified && detail.emailId && !checkingVerification && (
           <p className="text-sm text-slate-300 text-center">
             Verify your email to continue.
@@ -355,20 +405,20 @@ const JoinCreateChat = () => {
         <div className="flex gap-3 justify-center">
 
           <button
-            onClick={joinChat}
-            disabled={submitting}
-            className="bg-blue-500 px-4 py-2 rounded"
-          >
-            {submitting && detail.role === "STUDENT" ? "Joining..." : "Join Class"}
-          </button>
+          onClick={joinChat}
+          disabled={submitting}
+          className="bg-blue-500 px-4 py-2 rounded"
+        >
+          {submitting ? "Joining..." : "Join Class"}
+        </button>
 
           <button
-            onClick={createRoom}
-            disabled={submitting}
-            className="bg-orange-500 px-4 py-2 rounded"
-          >
-            {submitting && detail.role === "TEACHER" ? "Creating..." : "Create Class"}
-          </button>
+          onClick={createRoom}
+          disabled={submitting}
+          className="bg-orange-500 px-4 py-2 rounded"
+        >
+          {submitting ? "Creating..." : "Create Class"}
+        </button>
 
         </div>
 

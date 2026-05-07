@@ -16,6 +16,7 @@ import {
 } from "../services/RoomService";
 import { useChatContext } from "../context/useChatContext";
 import { getSocketTopicKey, normalizeEmail } from "../config/helper";
+import { getApiErrorMessage } from "../config/error";
 
 const REFRESH_INTERVAL_MS = 15000;
 const USER_EMOJIS = ["🙂", "😎", "🧑", "👩", "👨", "🌟", "🚀", "📘"];
@@ -26,7 +27,8 @@ const Dashboard = () => {
     currentUserEmail,
     currentUserRole,
     setRoomId,
-    setConnected
+    setConnected,
+    authToken
   } = useChatContext();
 
   const navigate = useNavigate();
@@ -62,7 +64,11 @@ const Dashboard = () => {
         ? await getTeacherClasses(email)
         : await getStudentClasses(email);
 
-      const nextClasses = response || [];
+      const nextClasses = Array.isArray(response) ? response : [];
+
+      if (!Array.isArray(response) && !silent) {
+        toast.error("Could not load classes");
+      }
 
       if (!isTeacher) {
         nextClasses.forEach((room) => {
@@ -232,7 +238,7 @@ const Dashboard = () => {
         if (currentUserEmail) {
           stompClient.publish({
             destination: `/app/join/${selectedRoomId}`,
-            body: currentUserEmail
+            body: JSON.stringify({ email: currentUserEmail, authToken })
           });
         }
       }
@@ -240,7 +246,7 @@ const Dashboard = () => {
 
     stompClient.activate();
     return () => stompClient.deactivate();
-  }, [selectedRoomId, currentUserEmail, isTeacher]);
+  }, [selectedRoomId, currentUserEmail, isTeacher, authToken]);
 
   useEffect(() => {
     if (!currentUserEmail || classes.length === 0) return;
@@ -312,7 +318,8 @@ const Dashboard = () => {
                 body: JSON.stringify({
                   sender: currentUserEmail,
                   content: payload,
-                  type: "MEETING"
+                  type: "MEETING",
+                  authToken
                 })
               });
             }
@@ -418,7 +425,7 @@ const Dashboard = () => {
       }
       stompClient.deactivate();
     };
-  }, [classes, currentUserEmail, isTeacher]);
+  }, [classes, currentUserEmail, isTeacher, authToken]);
 
   const openClass = (room) => {
     setRoomId(room.roomId);
@@ -500,7 +507,7 @@ const Dashboard = () => {
       setStudentEmail("");
       await refreshTeacherMembers();
     } catch (error) {
-      toast.error(error.response?.data || "Could not add student");
+      toast.error(getApiErrorMessage(error, "Could not add student"));
     } finally {
       setBusyAction("");
     }
@@ -524,7 +531,7 @@ const Dashboard = () => {
       setNewClassName("");
       toast.success("Class created successfully");
     } catch (error) {
-      toast.error(error.response?.data || "Could not create class");
+      toast.error(getApiErrorMessage(error, "Could not create class"));
     } finally {
       setBusyAction("");
     }
@@ -579,7 +586,7 @@ const Dashboard = () => {
       await refreshTeacherMembers();
     } catch (error) {
       await refreshTeacherMembers();
-      toast.error(error.response?.data || "Could not block student");
+      toast.error(getApiErrorMessage(error, "Could not block student"));
     } finally {
       setBusyAction("");
     }
@@ -601,7 +608,7 @@ const Dashboard = () => {
       await refreshTeacherMembers();
     } catch (error) {
       await refreshTeacherMembers();
-      toast.error(error.response?.data || "Could not activate student");
+      toast.error(getApiErrorMessage(error, "Could not activate student"));
     } finally {
       setBusyAction("");
     }
@@ -623,12 +630,12 @@ const Dashboard = () => {
         destination: meetingActive
           ? `/app/startMeeting/${selectedRoomId}`
           : `/app/stopMeeting/${selectedRoomId}`,
-        body: currentUserEmail
+        body: JSON.stringify({ teacherEmail: currentUserEmail, authToken })
       });
       toast.success(meetingActive ? "Meeting started" : "Meeting stopped");
     } catch (error) {
       pendingTeacherMeetingRef.current = "";
-      toast.error(error.response?.data || "Could not update meeting");
+      toast.error(getApiErrorMessage(error, "Could not update meeting"));
     } finally {
       setBusyAction("");
     }

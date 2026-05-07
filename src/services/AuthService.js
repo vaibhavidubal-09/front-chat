@@ -12,9 +12,9 @@ export const sendOtpApi = (email, role) => {
 // ============================================================
 // VERIFY OTP
 // ============================================================
-export const verifyOtpApi = (email, otp) => {
+export const verifyOtpApi = (email, otp, password) => {
   return httpClient.post("/auth/verify-otp", null, {
-    params: { email, otp }
+    params: { email, otp, password }
   });
 };
 
@@ -26,5 +26,14 @@ export const checkVerifiedApi = (email, config = {}) => {
     params: { email },
     timeout: 20000,
     ...config
+  });
+};
+
+// ============================================================
+// LOGIN
+// ============================================================
+export const loginApi = (email, password) => {
+  return httpClient.post("/auth/login", null, {
+    params: { email, password }
   });
 };
